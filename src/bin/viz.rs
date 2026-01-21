@@ -22,11 +22,11 @@ const TARGET_FRAME_TIME: Duration = Duration::from_millis(16);
 // Grid dimensions - this is the ONLY data structure
 const GRID_WIDTH: usize = 256;
 const GRID_HEIGHT: usize = 256;
-const DECAY_RATE: u32 = 2;
+const DECAY_RATE: u32 = 1; // Lower for persistent traces
 const HABITABILITY_THRESHOLD: u32 = 500;
 
 // Contribution parameters
-const CONTRIBUTIONS_PER_TICK: usize = 150;
+const CONTRIBUTIONS_PER_TICK: usize = 300; // More feed for visible effect
 
 /// Service hotspot - just parameters, NO shape tracking
 struct Hotspot {
@@ -264,8 +264,12 @@ async fn run() {
                         }
                     }
 
-                    // === PHASE 2: Diffusion (Energy Conserving) ===
-                    grid.diffuse();
+                    // === PHASE 2: Hyper-Diffusion (4x for fluid effect) ===
+                    // Multiple iterations lower "viscosity" - trace spreads faster
+                    // Creates organic continents instead of pointillism
+                    for _ in 0..4 {
+                        grid.diffuse();
+                    }
 
                     // === PHASE 3: Global Decay ===
                     grid.apply_decay();

@@ -280,42 +280,45 @@ impl IsotopeGrid {
                 // Get current RGB
                 let (r, g, b) = center.rgb();
 
-                // Only diffuse significant values (noise reduction)
-                if r > 30 || g > 30 || b > 30 {
-                    // Calculate leak amount (10% per neighbor = 40% total)
-                    let leak_r = r / 10;
-                    let leak_g = g / 10;
-                    let leak_b = b / 10;
+                // Lower threshold for fluid effect (was 30, now 4)
+                if r > 4 || g > 4 || b > 4 {
+                    // 12.5% leak per neighbor (50% total) - bitwise shift is faster
+                    let leak_r = r >> 3; // r / 8
+                    let leak_g = g >> 3;
+                    let leak_b = b >> 3;
 
-                    // Total amount to remove from center (4 neighbors)
-                    let total_leak_r = leak_r * 4;
-                    let total_leak_g = leak_g * 4;
-                    let total_leak_b = leak_b * 4;
+                    // Only proceed if there's something to leak
+                    if leak_r > 0 || leak_g > 0 || leak_b > 0 {
+                        // Total amount to remove from center (4 neighbors)
+                        let total_leak_r = leak_r * 4;
+                        let total_leak_g = leak_g * 4;
+                        let total_leak_b = leak_b * 4;
 
-                    // SUBTRACT from center first (energy conservation)
-                    center.r.fetch_sub(total_leak_r.min(r), Ordering::Relaxed);
-                    center.g.fetch_sub(total_leak_g.min(g), Ordering::Relaxed);
-                    center.b.fetch_sub(total_leak_b.min(b), Ordering::Relaxed);
+                        // SUBTRACT from center first (energy conservation)
+                        center.r.fetch_sub(total_leak_r.min(r), Ordering::Relaxed);
+                        center.g.fetch_sub(total_leak_g.min(g), Ordering::Relaxed);
+                        center.b.fetch_sub(total_leak_b.min(b), Ordering::Relaxed);
 
-                    // Neighbor indices
-                    let neighbors = [
-                        (y - 1) * w + x, // Up
-                        (y + 1) * w + x, // Down
-                        y * w + (x - 1), // Left
-                        y * w + (x + 1), // Right
-                    ];
+                        // Neighbor indices
+                        let neighbors = [
+                            (y - 1) * w + x, // Up
+                            (y + 1) * w + x, // Down
+                            y * w + (x - 1), // Left
+                            y * w + (x + 1), // Right
+                        ];
 
-                    // ADD to neighbors
-                    for n_idx in neighbors {
-                        let neighbor = &self.cells[n_idx];
-                        if leak_r > 0 {
-                            neighbor.r.fetch_add(leak_r, Ordering::Relaxed);
-                        }
-                        if leak_g > 0 {
-                            neighbor.g.fetch_add(leak_g, Ordering::Relaxed);
-                        }
-                        if leak_b > 0 {
-                            neighbor.b.fetch_add(leak_b, Ordering::Relaxed);
+                        // ADD to neighbors
+                        for n_idx in neighbors {
+                            let neighbor = &self.cells[n_idx];
+                            if leak_r > 0 {
+                                neighbor.r.fetch_add(leak_r, Ordering::Relaxed);
+                            }
+                            if leak_g > 0 {
+                                neighbor.g.fetch_add(leak_g, Ordering::Relaxed);
+                            }
+                            if leak_b > 0 {
+                                neighbor.b.fetch_add(leak_b, Ordering::Relaxed);
+                            }
                         }
                     }
                 }
