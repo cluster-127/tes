@@ -1,0 +1,24 @@
+# Rust
+target/
+Cargo.lock
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# Build artifacts
+*.log
+*.tmp
+
+# Test coverage
+*.profraw
+*.profdata
+coverage/

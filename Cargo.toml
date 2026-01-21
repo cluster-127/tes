@@ -1,0 +1,13 @@
+[package]
+name = "tes"
+version = "0.1.0"
+edition = "2021"
+description = "Topographic Execution Substrate - A coordination medium based on spatial topology"
+license = "MIT"
+
+[dependencies]
+# Lock-free atomics for trace density grid
+crossbeam-utils = "0.8"
+
+[dev-dependencies]
+criterion = "0.5"
