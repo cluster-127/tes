@@ -124,17 +124,29 @@ impl ServiceColor {
 
     /// Create a pure red color (for testing).
     pub fn red() -> Self {
-        Self { r: 1000, g: 0, b: 0 }
+        Self {
+            r: 1000,
+            g: 0,
+            b: 0,
+        }
     }
 
     /// Create a pure green color (for testing).
     pub fn green() -> Self {
-        Self { r: 0, g: 1000, b: 0 }
+        Self {
+            r: 0,
+            g: 1000,
+            b: 0,
+        }
     }
 
     /// Create a pure blue color (for testing).
     pub fn blue() -> Self {
-        Self { r: 0, g: 0, b: 1000 }
+        Self {
+            r: 0,
+            g: 0,
+            b: 1000,
+        }
     }
 
     fn as_tuple(&self) -> (u32, u32, u32) {
@@ -160,9 +172,7 @@ impl IsotopeGrid {
         solid_threshold: u32,
         liquid_threshold: u32,
     ) -> Self {
-        let cells = (0..width * height)
-            .map(|_| TracePixel::new())
-            .collect();
+        let cells = (0..width * height).map(|_| TracePixel::new()).collect();
         Self {
             width,
             height,
@@ -187,17 +197,13 @@ impl IsotopeGrid {
     /// Get total density at position.
     #[inline]
     pub fn density(&self, x: usize, y: usize) -> u32 {
-        self.get_cell(x, y)
-            .map(|c| c.density())
-            .unwrap_or(0)
+        self.get_cell(x, y).map(|c| c.density()).unwrap_or(0)
     }
 
     /// Get RGB values at position.
     #[inline]
     pub fn rgb(&self, x: usize, y: usize) -> (u32, u32, u32) {
-        self.get_cell(x, y)
-            .map(|c| c.rgb())
-            .unwrap_or((0, 0, 0))
+        self.get_cell(x, y).map(|c| c.rgb()).unwrap_or((0, 0, 0))
     }
 
     /// Get normalized color at position (for visualization).
@@ -251,6 +257,71 @@ impl IsotopeGrid {
             None
         }
     }
+
+    /// Diffusion: Density leaks to neighbors (ENERGY CONSERVING).
+    /// This creates the "liquid" phase - pixels connect instead of staying isolated.
+    /// Subtracts from center what it adds to neighbors.
+    pub fn diffuse(&self) {
+        let w = self.width;
+        let h = self.height;
+
+        // Cross pattern diffusion (4-connectivity)
+        // Skip edges to avoid bounds checking
+        for y in 1..h - 1 {
+            for x in 1..w - 1 {
+                let center_idx = y * w + x;
+                let center = &self.cells[center_idx];
+
+                // Skip low-density cells (optimization)
+                if center.density() < 40 {
+                    continue;
+                }
+
+                // Get current RGB
+                let (r, g, b) = center.rgb();
+
+                // Only diffuse significant values (noise reduction)
+                if r > 30 || g > 30 || b > 30 {
+                    // Calculate leak amount (10% per neighbor = 40% total)
+                    let leak_r = r / 10;
+                    let leak_g = g / 10;
+                    let leak_b = b / 10;
+
+                    // Total amount to remove from center (4 neighbors)
+                    let total_leak_r = leak_r * 4;
+                    let total_leak_g = leak_g * 4;
+                    let total_leak_b = leak_b * 4;
+
+                    // SUBTRACT from center first (energy conservation)
+                    center.r.fetch_sub(total_leak_r.min(r), Ordering::Relaxed);
+                    center.g.fetch_sub(total_leak_g.min(g), Ordering::Relaxed);
+                    center.b.fetch_sub(total_leak_b.min(b), Ordering::Relaxed);
+
+                    // Neighbor indices
+                    let neighbors = [
+                        (y - 1) * w + x, // Up
+                        (y + 1) * w + x, // Down
+                        y * w + (x - 1), // Left
+                        y * w + (x + 1), // Right
+                    ];
+
+                    // ADD to neighbors
+                    for n_idx in neighbors {
+                        let neighbor = &self.cells[n_idx];
+                        if leak_r > 0 {
+                            neighbor.r.fetch_add(leak_r, Ordering::Relaxed);
+                        }
+                        if leak_g > 0 {
+                            neighbor.g.fetch_add(leak_g, Ordering::Relaxed);
+                        }
+                        if leak_b > 0 {
+                            neighbor.b.fetch_add(leak_b, Ordering::Relaxed);
+                        }
+                    }
+                }
+            }
+        }
+    }
 }
 
 #[cfg(test)]
@@ -263,7 +334,7 @@ mod tests {
 
         // Auth (Red) contributes 99
         grid.contribute(5, 5, 990, ServiceColor::red()); // 99 × 10 for fixed point
-        // Payment (Green) contributes 1
+                                                         // Payment (Green) contributes 1
         grid.contribute(5, 5, 10, ServiceColor::green()); // 1 × 10
 
         let (r, g, b) = grid.rgb(5, 5);
@@ -284,7 +355,12 @@ mod tests {
         let (nr, ng, _) = grid.color(3, 3);
 
         // Should be approximately 50/50 (yellow)
-        assert!((nr - ng).abs() < 0.1, "Should be balanced: r={}, g={}", nr, ng);
+        assert!(
+            (nr - ng).abs() < 0.1,
+            "Should be balanced: r={}, g={}",
+            nr,
+            ng
+        );
     }
 
     #[test]

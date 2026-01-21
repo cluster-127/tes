@@ -9,5 +9,21 @@ license = "MIT"
 # Lock-free atomics for trace density grid
 crossbeam-utils = "0.8"
 
+# Visualization (optional feature)
+wgpu = { version = "0.19", optional = true }
+winit = { version = "0.29", optional = true }
+pollster = { version = "0.3", optional = true }
+bytemuck = { version = "1.14", features = ["derive"], optional = true }
+rand = { version = "0.8", optional = true }
+
 [dev-dependencies]
 criterion = "0.5"
+
+[features]
+default = []
+viz = ["wgpu", "winit", "pollster", "bytemuck", "rand"]
+
+[[bin]]
+name = "tes-viz"
+path = "src/bin/viz.rs"
+required-features = ["viz"]
